@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AKUARIUM ABYSS — Curi 3 Mutiara di Kegelapan Biru</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #06283d;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #dff7ff; }
+  #game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  .panel { background: rgba(4, 22, 38, 0.82); border: 1px solid rgba(47, 212, 232, 0.45);
+    border-radius: 12px; padding: 10px 14px; backdrop-filter: blur(2px); }
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; z-index: 5; }
+  #hud-top { position: absolute; top: 12px; left: 12px; min-width: 210px; font-size: 15px; line-height: 1.5; }
+  #hud-top b { color: #ffe14d; }
+  #hud-meter { position: absolute; top: 12px; left: 240px; width: 220px; font-size: 13px; }
+  #meter-bar { height: 10px; background: rgba(255,255,255,0.18); border-radius: 6px; margin-top: 5px; overflow: hidden; }
+  #meter-fill { height: 100%; width: 0%; background: #39ff88; border-radius: 6px; transition: width 0.12s linear; }
+  #banner { position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+    background: rgba(4, 22, 38, 0.88); border: 1px solid #ffe14d; color: #ffe14d;
+    border-radius: 10px; padding: 8px 18px; font-size: 16px; font-weight: 600;
+    opacity: 0; transition: opacity 0.25s; white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis; }
+  #guard-strip { position: absolute; top: 118px; left: 12px; right: 12px; font-size: 14px; padding: 7px 12px; }
+  #guard-strip span { margin-right: 4px; }
+  #guard-strip .chase { color: #ff5a5a; font-weight: 700; }
+  #guard-strip .susp { color: #ffb020; font-weight: 700; }
+  #hud-controls { position: absolute; bottom: 12px; left: 12px; font-size: 13px; }
+  #minimap-wrap { position: absolute; bottom: 12px; right: 12px; }
+  #minimap-wrap .panel { padding: 6px; }
+  #minimap { display: block; border-radius: 8px; }
+  #btn-mute { position: absolute; top: 12px; right: 12px; pointer-events: auto; cursor: pointer;
+    background: rgba(4,22,38,0.85); color: #dff7ff; border: 1px solid rgba(47,212,232,0.45);
+    border-radius: 10px; padding: 8px 12px; font-size: 13px; }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    z-index: 10; background: rgba(3, 16, 28, 0.62); }
+  .card { max-width: 640px; width: calc(100vw - 48px); background: rgba(4, 24, 40, 0.94);
+    border: 1px solid #2fd4e8; border-radius: 18px; padding: 28px 32px; text-align: center;
+    box-shadow: 0 0 60px rgba(47, 212, 232, 0.25); }
+  .card h1 { margin: 0 0 4px; font-size: 40px; letter-spacing: 2px; color: #7df0ff; }
+  .card h2 { margin: 0 0 14px; font-size: 17px; font-weight: 400; color: #ffe14d; }
+  .card p { font-size: 15px; line-height: 1.55; margin: 8px 0; text-align: left; }
+  .card p b { color: #7df0ff; }
+  .card .keys { font-size: 13.5px; color: #9fd8e8; }
+  .btn { display: inline-block; margin-top: 16px; padding: 13px 34px; font-size: 18px; font-weight: 700;
+    color: #04222f; background: #2fd4e8; border: none; border-radius: 12px; cursor: pointer; }
+  .btn:hover { background: #7df0ff; }
+  .btn.ghost { background: transparent; color: #7df0ff; border: 2px solid #2fd4e8; margin-left: 10px; }
+  #win-grade { font-size: 46px; font-weight: 800; color: #ffe14d; margin: 6px 0; letter-spacing: 3px; }
+  #win-stats, #lose-stats { font-size: 15px; color: #dff7ff; }
+  .pearl-list { color: #ffe14d; font-weight: 600; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div id="hud-top" class="panel">
+    <div><b id="hud-pearls">◆ 0/3 Mutiara</b></div>
+    <div id="hud-time">00:00</div>
+    <div id="hud-feed">◉ Pakan: 3</div>
+  </div>
+  <div id="hud-meter" class="panel">
+    <div id="meter-label">TERSEMBUNYI</div>
+    <div id="meter-bar"><div id="meter-fill"></div></div>
+    <div style="font-size:12px; margin-top:4px; color:#9fd8e8;">Kaca membiaskan cone · Kelp gelap = aman</div>
+  </div>
+  <div id="banner"></div>
+  <div id="guard-strip" class="panel"></div>
+  <div id="hud-controls" class="panel">WASD gerak · Shift menyelinap · E ambil mutiara (diam 1 dtk) · Q lempar pakan · P jeda · R ulangi · M suara</div>
+  <div id="minimap-wrap"><div class="panel"><canvas id="minimap" width="220" height="152"></canvas></div></div>
+  <button id="btn-mute">🔊 Suara: Hidup (M)</button>
+</div>
+
+<div id="screen-title" class="screen">
+  <div class="card">
+    <h1>AKUARIUM ABYSS</h1>
+    <h2>Curi 3 Mutiara di Kegelapan Biru</h2>
+    <p><b>GOAL:</b> Akuarium raksasa itu tutup tengah malam. Curi <span class="pearl-list">Mutiara Bulan, Mutiara Api, dan Mutiara Badai</span> dari tangki pajangan, lalu capai pintu <b>EXIT</b> di selatan tanpa tertangkap.</p>
+    <p><b>WIN:</b> 3 mutiara + sampai EXIT. <b>LOSE:</b> penyelam keamanan menyentuhmu saat mengejar.</p>
+    <p><b>KACA MEMBIASKAN:</b> cone visi penjaga membelok dan melebar saat melewati dinding kaca — dan matanya lebih lambat mengenalimu lewat kaca. Bersembunyi di balik tangki itu nyata.</p>
+    <p><b>IKAN PENGALIH:</b> tekan <b>Q</b> untuk melempar pakan — gerombolan ikan berkerumun dan penjaga di sekitar teralihkan. Pakan hanya 3x.</p>
+    <p><b>ZONA GELAP:</b> rumpun kelp di sudut membuatmu sulit terlihat — meter deteksi turun di sana.</p>
+    <p class="keys">WASD / panah: gerak &nbsp;·&nbsp; Shift: menyelinap &nbsp;·&nbsp; E: ambil mutiara (diam 1 detik saat mencongkel) &nbsp;·&nbsp; Q: lempar pakan &nbsp;·&nbsp; P: jeda &nbsp;·&nbsp; R: ulangi &nbsp;·&nbsp; M: suara</p>
+    <button id="btn-start" class="btn">▶ &nbsp;MULAI MENYELINAP</button>
+  </div>
+</div>
+
+<div id="screen-win" class="screen">
+  <div class="card">
+    <h1>🏆 LOLOS TAK TERLIHAT!</h1>
+    <div id="win-grade">GRADE S</div>
+    <p style="text-align:center;">Tiga mutiara di saku, hiu robot tak pernah tahu kau ada.</p>
+    <p id="win-stats" style="text-align:center;"></p>
+    <button id="btn-again" class="btn">↻ &nbsp;MAIN LAGI (R)</button>
+  </div>
+</div>
+
+<div id="screen-lose" class="screen">
+  <div class="card">
+    <h1 style="color:#ff5a5a;">TERTANGKAP!</h1>
+    <p style="text-align:center;">Lampu sorot menyapumu dan penyelam keamanan menyergapmu di antara tangki.</p>
+    <p id="lose-stats" style="text-align:center;"></p>
+    <button id="btn-retry" class="btn">↻ &nbsp;COBA LAGI (R)</button>
+  </div>
+</div>
+
+<div id="screen-paused" class="screen">
+  <div class="card">
+    <h1>JEDA</h1>
+    <p style="text-align:center;">Ikan-ikan menunggu. Tekan P untuk lanjut.</p>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
